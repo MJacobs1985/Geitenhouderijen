@@ -425,11 +425,17 @@ df2%>%
   dplyr::select(Auteur, Analysejaar, Extra_longontsteking, Afstand, 
                 Extra_longontsteking_laag, Extra_longontsteking_hoog)%>%
   drop_na()%>%
+  # STAP 1: Bereken de Standaardfout (SE) en het Gewicht (Weight) per studie
+  # Aanname: CI is 95%, dus range gedeeld door 3.92 (2 * 1.96) is de SE.
+  mutate(SE = (Extra_longontsteking_hoog - Extra_longontsteking_laag) / 3.92,
+         Weight = 1 / (SE^2)) %>%
   group_by(Analysejaar, Afstand)%>%
-  summarise(mean_estimate = mean(Extra_longontsteking), 
-            mean_low = mean(Extra_longontsteking_laag), 
-            mean_high = mean(Extra_longontsteking_hoog))%>%
-  ggplot(aes(x=Analysejaar, 
+  # STAP 2: Bereken het gewogen gemiddelde (Pooled Estimate) en de gepoolde SE
+  summarise(mean_estimate = sum(Extra_longontsteking * Weight) / sum(Weight),
+            Pooled_SE = sqrt(1 / sum(Weight)),
+            mean_low = mean_estimate - (1.96 * Pooled_SE), 
+            mean_high = mean_estimate + (1.96 * Pooled_SE))%>%
+  ggplot(aes(x=Analysejaar,
          y=mean_estimate, 
          col=Afstand,
          fill=Afstand,
@@ -460,6 +466,7 @@ ggsave("Longontstekingen per jaar per afstand VGO.png", dpi=600)
 tiff("test.png", units="in", width=5, height=5, res=300)
 # insert ggplot code
 dev.off()
+
 
 
 
