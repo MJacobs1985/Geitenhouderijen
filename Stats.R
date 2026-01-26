@@ -425,39 +425,51 @@ df2%>%
   dplyr::select(Auteur, Analysejaar, Extra_longontsteking, Afstand, 
                 Extra_longontsteking_laag, Extra_longontsteking_hoog)%>%
   drop_na()%>%
+  mutate(SE = (Extra_longontsteking_hoog - Extra_longontsteking_laag) / 3.92,
+         Weight = 1 / (SE^2))%>%
   group_by(Analysejaar, Afstand)%>%
-  summarise(mean_estimate = mean(Extra_longontsteking), 
-            mean_low = mean(Extra_longontsteking_laag), 
-            mean_high = mean(Extra_longontsteking_hoog))%>%
+  summarise(mean_Marc     = mean(Extra_longontsteking), 
+            low_Marc      = mean(Extra_longontsteking_laag), 
+            high_Marc     = mean(Extra_longontsteking_hoog), 
+            mean_Timo     = sum(Extra_longontsteking * Weight) / sum(Weight),
+            Pooled_SE     = sqrt(1 / sum(Weight)),
+            low_Timo      = mean_Timo - (1.96 * Pooled_SE), 
+            high_Timo     = mean_Timo + (1.96 * Pooled_SE))%>%
+  select(-Pooled_SE)%>%
+  pivot_longer(-c(Afstand, Analysejaar),
+               names_pattern = '(.*?)_(.*)',
+               names_to = c("variable", "name")) %>% 
+  mutate(name=as.factor(name))%>%
+  ungroup()%>%
+  pivot_wider(names_from = variable, values_from = value)%>%
   ggplot(aes(x=Analysejaar, 
-         y=mean_estimate, 
-         col=Afstand,
-         fill=Afstand,
-         ymin=mean_low, 
-         ymax=mean_high, 
-         group=Afstand, 
-         label=round(mean_estimate)))+
+             y=mean,
+             col=name,
+             fill=name,
+             ymin=low, 
+             ymax=high, 
+             group=interaction(name, Afstand), 
+             label=round(mean)))+
   geom_point(show.legend = FALSE)+
   geom_line()+
   geom_ribbon(alpha=0.1, show.legend = FALSE)+
   geom_hline(yintercept = 0, lty=2, col="black")+
-  geom_text(col="black", nudge_y = -100)+
+  geom_text(aes(col=name), nudge_y = -100)+
   theme_bw()+
   facet_grid(~Afstand)+
   theme(legend.position = "bottom")+
   scale_x_continuous(breaks = c(2010,2011,2012,2013,2014,2015,2016,2017,2018,2019))+
   labs(x="Analysejaar", 
        y="Geschatte extra aantal longontstekingen", 
-       col="Afstand (m)", 
+       col="Analyse (Auteur)", 
        title="Relatie tussen afstand en geschat aantal extra longontstekingen per jaar.", 
        subtitle="Incidentie van longontstekingen is niet significant op 500 meter en neemt af op 1000m.",
        caption="Schattingen zijn gebaseerd op de studies van Borlée (2015), Huijskens (2016), Post (2019) en Lotterman (2023). 
        Deze studies publiceerden als enge de odds-ratios per afstand en per jaar. 
        De geschatte extra longontstekingen plus 95% betrouwbaarheidsintervallen zijn gemiddelden over de studies heen.
        Een meer gedegen analyse vereist het samenvoegen van alle epidemiologische studies ten behoeve van een grootschalige analyse.")
-ggsave("Longontstekingen per jaar per afstand VGO.png", dpi=600)
-
-tiff("test.png", units="in", width=5, height=5, res=300)
+ggsave("Longontstekingen per jaar per afstand VGO_Marc_Timo.png", units="in", width=10, height=10, dpi=300)
+tiff("Longontstekingen per jaar per afstand VGO_Marc_Timo.png", units="in", width=5, height=5, res=300)
 # insert ggplot code
 dev.off()
 
